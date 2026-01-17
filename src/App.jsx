@@ -17,6 +17,7 @@ import Reports from './pages/Reports/Reports';
 import Settings from './pages/Settings/Settings';
 import Users from './pages/Users/Users';
 import Agenda from './pages/Agenda/Agenda';
+import Companies from './pages/SuperAdmin/Companies';
 
 import './index.css';
 
@@ -30,6 +31,14 @@ const ForbidOperator = ({ children }) => {
     const { user } = useAuth();
     if (user?.role === 'operator') {
         return <Navigate to="/clients" replace />;
+    }
+    return children;
+};
+
+const RequireSuperAdmin = ({ children }) => {
+    const { user } = useAuth();
+    if (user?.role !== 'superadmin') {
+        return <Navigate to="/" replace />;
     }
     return children;
 };
@@ -85,6 +94,14 @@ function App() {
                                         <ForbidOperator>
                                             <Users />
                                         </ForbidOperator>
+                                    }
+                                />
+                                <Route
+                                    path="companies"
+                                    element={
+                                        <RequireSuperAdmin>
+                                            <Companies />
+                                        </RequireSuperAdmin>
                                     }
                                 />
                             </Route>

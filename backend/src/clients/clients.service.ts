@@ -12,37 +12,52 @@ export class ClientsService {
     private readonly clientRepository: Repository<Client>,
   ) {}
 
-  create(createClientDto: CreateClientDto) {
-    const client = this.clientRepository.create(createClientDto);
+  create(createClientDto: CreateClientDto, companyId: string | null) {
+    const client = this.clientRepository.create({
+      ...createClientDto,
+      companyId: companyId ?? null,
+    });
     return this.clientRepository.save(client);
   }
 
-  findAll() {
-    return this.clientRepository.find({ order: { createdAt: 'DESC' } });
+  findAll(companyId: string | null) {
+    const where = companyId ? { companyId } : {};
+    return this.clientRepository.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async findOne(id: string) {
-    const client = await this.clientRepository.findOne({ where: { id } });
+  async findOne(id: string, companyId: string | null) {
+    const where: Record<string, string> = { id };
+    if (companyId) {
+      where.companyId = companyId;
+    }
+    const client = await this.clientRepository.findOne({ where });
     if (!client) {
       throw new NotFoundException(`Client #${id} not found`);
     }
     return client;
   }
 
-  async update(id: string, updateClientDto: UpdateClientDto) {
-    const client = await this.findOne(id);
+  async update(
+    id: string,
+    updateClientDto: UpdateClientDto,
+    companyId: string | null,
+  ) {
+    const client = await this.findOne(id, companyId);
     this.clientRepository.merge(client, updateClientDto);
     return this.clientRepository.save(client);
   }
 
-  async assign(id: string, userId: string) {
-    const client = await this.findOne(id);
+  async assign(id: string, userId: string, companyId: string | null) {
+    const client = await this.findOne(id, companyId);
     client.assignedToId = userId;
     return this.clientRepository.save(client);
   }
 
-  async remove(id: string) {
-    const client = await this.findOne(id);
+  async remove(id: string, companyId: string | null) {
+    const client = await this.findOne(id, companyId);
     return this.clientRepository.remove(client);
   }
 }

@@ -9,7 +9,10 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -22,32 +25,57 @@ import type { Request } from 'express';
 export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
 
+  @UseGuards(AuthGuard('jwt'))
   @Post()
-  create(@Body() createMessageDto: CreateMessageDto) {
-    return this.messagesService.create(createMessageDto);
+  create(
+    @Body() createMessageDto: CreateMessageDto,
+    @Req() req: { user: { companyId: string | null } },
+  ) {
+    return this.messagesService.create(createMessageDto, req.user.companyId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Get()
-  findAll(@Query('clientId') clientId: string) {
+  findAll(
+    @Query('clientId') clientId: string,
+    @Req() req: { user: { companyId: string | null } },
+  ) {
     if (clientId) {
-      return this.messagesService.findAll(clientId);
+      return this.messagesService.findAll(clientId, req.user.companyId);
     }
     return [];
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.messagesService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @Req() req: { user: { companyId: string | null } },
+  ) {
+    return this.messagesService.findOne(id, req.user.companyId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMessageDto: UpdateMessageDto) {
-    return this.messagesService.update(id, updateMessageDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateMessageDto: UpdateMessageDto,
+    @Req() req: { user: { companyId: string | null } },
+  ) {
+    return this.messagesService.update(
+      id,
+      updateMessageDto,
+      req.user.companyId,
+    );
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.messagesService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @Req() req: { user: { companyId: string | null } },
+  ) {
+    return this.messagesService.remove(id, req.user.companyId);
   }
 
   @Post('upload')

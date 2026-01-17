@@ -12,21 +12,28 @@ export class AppointmentsService {
     private readonly appointmentRepository: Repository<Appointment>,
   ) {}
 
-  create(createAppointmentDto: CreateAppointmentDto) {
-    const appointment = this.appointmentRepository.create(createAppointmentDto);
+  create(createAppointmentDto: CreateAppointmentDto, companyId: string | null) {
+    const appointment = this.appointmentRepository.create({
+      ...createAppointmentDto,
+      companyId: companyId ?? null,
+    });
     return this.appointmentRepository.save(appointment);
   }
 
-  findAll() {
+  findAll(companyId: string | null) {
     return this.appointmentRepository.find({
+      where: companyId ? { companyId } : {},
       relations: ['client'],
       order: { date: 'ASC' },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, companyId: string | null) {
     const appointment = await this.appointmentRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        ...(companyId ? { companyId } : {}),
+      },
       relations: ['client'],
     });
     if (!appointment) {
@@ -35,14 +42,18 @@ export class AppointmentsService {
     return appointment;
   }
 
-  async update(id: string, updateAppointmentDto: UpdateAppointmentDto) {
-    const appointment = await this.findOne(id);
+  async update(
+    id: string,
+    updateAppointmentDto: UpdateAppointmentDto,
+    companyId: string | null,
+  ) {
+    const appointment = await this.findOne(id, companyId);
     this.appointmentRepository.merge(appointment, updateAppointmentDto);
     return this.appointmentRepository.save(appointment);
   }
 
-  async remove(id: string) {
-    const appointment = await this.findOne(id);
+  async remove(id: string, companyId: string | null) {
+    const appointment = await this.findOne(id, companyId);
     return this.appointmentRepository.remove(appointment);
   }
 }

@@ -16,8 +16,8 @@ export class IaController {
   constructor(private readonly iaService: IaService) {}
 
   @Post()
-  create(@Body() createIaDto: CreateIaDto) {
-    return this.iaService.create(createIaDto);
+  create(@Body() _createIaDto: CreateIaDto) {
+    return this.iaService.create();
   }
 
   @Get()
@@ -31,8 +31,8 @@ export class IaController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateIaDto: UpdateIaDto) {
-    return this.iaService.update(+id, updateIaDto);
+  update(@Param('id') id: string, @Body() _updateIaDto: UpdateIaDto) {
+    return this.iaService.update(+id);
   }
 
   @Delete(':id')

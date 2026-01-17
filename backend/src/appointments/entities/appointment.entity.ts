@@ -33,6 +33,9 @@ export class Appointment {
   @Column()
   clientId: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

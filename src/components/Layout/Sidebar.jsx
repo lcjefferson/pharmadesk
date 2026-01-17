@@ -9,6 +9,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
     const allItems = [
         { name: 'Dashboard', href: '/', icon: Icons.Home },
+        { name: 'Empresas', href: '/companies', icon: Icons.Briefcase, superadminOnly: true },
         { name: 'Clientes', href: '/clients', icon: Icons.Users },
         { name: 'Agenda', href: '/agenda', icon: Icons.Calendar },
         { name: 'Leads', href: '/leads', icon: Icons.UserPlus },
@@ -20,10 +21,18 @@ const Sidebar = ({ isOpen, onClose }) => {
     ];
 
     const operatorAllowed = ['/clients', '/leads', '/agenda', '/service'];
-    const items =
-        user?.role === 'operator'
-            ? allItems.filter(i => operatorAllowed.includes(i.href))
-            : allItems;
+    
+    let items = allItems;
+
+    if (user?.role === 'operator') {
+        items = allItems.filter(i => operatorAllowed.includes(i.href));
+    } else if (user?.role !== 'superadmin') {
+        // Hide superadmin only items for non-superadmins
+        items = allItems.filter(i => !i.superadminOnly);
+    } else {
+        // Superadmin sees everything (or maybe filter out some things? For now, everything)
+        // Ensure "Empresas" is visible
+    }
 
     // Assuming isCollapsed is defined elsewhere or passed as a prop,
     // for this example, let's assume it's a prop or state variable.

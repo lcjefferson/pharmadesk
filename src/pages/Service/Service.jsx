@@ -15,6 +15,9 @@ const Service = () => {
     const [typingInfo, setTypingInfo] = useState(null);
     const [socket, setSocket] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [clientSearch, setClientSearch] = useState('');
+    const [clientStatusFilter, setClientStatusFilter] = useState('all');
+    const [messageSearch, setMessageSearch] = useState('');
     
     const messagesEndRef = useRef(null);
     const location = useLocation();
@@ -208,16 +211,65 @@ const Service = () => {
 
     const activeClient = clients.find(c => c.id === activeClientId);
 
+    const normalizedClientSearch = clientSearch.toLowerCase();
+
+    const filteredClients = clients.filter((client) => {
+        const matchesSearch =
+            !normalizedClientSearch ||
+            client.name?.toLowerCase().includes(normalizedClientSearch) ||
+            client.email?.toLowerCase().includes(normalizedClientSearch) ||
+            client.phone?.toLowerCase().includes(normalizedClientSearch);
+
+        const matchesStatus =
+            clientStatusFilter === 'all' ||
+            (clientStatusFilter === 'active' && client.status === 'active') ||
+            (clientStatusFilter === 'inactive' && client.status === 'inactive');
+
+        return matchesSearch && matchesStatus;
+    });
+
+    const normalizedMessageSearch = messageSearch.toLowerCase();
+
+    const filteredMessages = messages.filter((m) => {
+        if (!normalizedMessageSearch) return true;
+        const content = (m.content || '').toString().toLowerCase();
+        const fileName = (m.fileName || '').toString().toLowerCase();
+        return (
+            content.includes(normalizedMessageSearch) ||
+            fileName.includes(normalizedMessageSearch)
+        );
+    });
+
     if (loading) return <div>Carregando...</div>;
 
     return (
         <div className="flex h-[calc(100vh-8rem)] bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 overflow-hidden fade-in">
             {/* Sidebar de Clientes */}
             <div className="w-1/3 border-r border-slate-200 dark:border-slate-700 overflow-y-auto">
-                <div className="p-4 border-b dark:border-slate-700 font-bold dark:text-white">
-                    Atendimentos
+                <div className="p-4 border-b dark:border-slate-700 dark:text-white">
+                    <div className="font-bold mb-3">
+                        Atendimentos
+                    </div>
+                    <div className="space-y-2">
+                        <input
+                            type="text"
+                            value={clientSearch}
+                            onChange={(e) => setClientSearch(e.target.value)}
+                            placeholder="Buscar cliente por nome, e-mail ou telefone"
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded text-sm dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <select
+                            value={clientStatusFilter}
+                            onChange={(e) => setClientStatusFilter(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded text-sm dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        >
+                            <option value="all">Todos os status</option>
+                            <option value="active">Somente ativos</option>
+                            <option value="inactive">Somente inativos</option>
+                        </select>
+                    </div>
                 </div>
-                {clients.map(client => (
+                {filteredClients.map(client => (
                     <div
                         key={client.id}
                         onClick={() => setActiveClientId(client.id)}
@@ -229,7 +281,7 @@ const Service = () => {
                         </div>
                     </div>
                 ))}
-                {clients.length === 0 && (
+                {filteredClients.length === 0 && (
                     <div className="p-4 text-center text-slate-500">Nenhum cliente encontrado.</div>
                 )}
             </div>
@@ -243,10 +295,19 @@ const Service = () => {
                                 <span>{activeClient?.name}</span>
                                 {typingInfo && <span className="text-xs text-green-600 animate-pulse font-normal ml-2">{typingInfo}</span>}
                             </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={messageSearch}
+                                    onChange={(e) => setMessageSearch(e.target.value)}
+                                    placeholder="Buscar na conversa"
+                                    className="w-56 px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded text-xs dark:bg-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100 dark:bg-slate-900/50">
-                            {messages.map((m, idx) => (
+                            {filteredMessages.map((m, idx) => (
                                 <div key={m.id || idx} className={`flex ${m.sender === 'agent' ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`p-3 rounded-lg max-w-[75%] ${
                                         m.sender === 'agent' 

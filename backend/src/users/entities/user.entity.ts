@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 
 export enum UserRole {
+  SUPERADMIN = 'superadmin',
   ADMIN = 'admin',
   SUPERVISOR = 'supervisor',
   OPERATOR = 'operator',
@@ -32,6 +33,12 @@ export class User {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  companyName: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

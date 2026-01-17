@@ -32,6 +32,9 @@ export class Lead {
   @Column({ nullable: true })
   source: string; // instagram, whatsapp, manual, etc.
 
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -55,6 +55,9 @@ export class Message {
   @Column()
   clientId: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
   @ManyToOne(() => Client, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'clientId' })
   client: Client;

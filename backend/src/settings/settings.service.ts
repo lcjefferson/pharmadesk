@@ -12,23 +12,43 @@ export class SettingsService {
     private settingsRepository: Repository<Setting>,
   ) {}
 
-  findAll() {
-    return this.settingsRepository.find();
+  findAll(companyId: string | null) {
+    return this.settingsRepository.find({
+      where: companyId ? { companyId } : {},
+    });
   }
 
-  async findOne(key: string) {
-    const setting = await this.settingsRepository.findOne({ where: { key } });
+  async findOne(key: string, companyId: string | null) {
+    const setting = await this.settingsRepository.findOne({
+      where: {
+        key,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
     return setting || { key, value: null };
   }
 
-  async create(createSettingDto: CreateSettingDto) {
-    const setting = this.settingsRepository.create(createSettingDto);
+  async create(createSettingDto: CreateSettingDto, companyId: string | null) {
+    const setting = this.settingsRepository.create({
+      ...createSettingDto,
+      companyId,
+    });
     return this.settingsRepository.save(setting);
   }
 
-  async update(key: string, updateSettingDto: UpdateSettingDto) {
+  async update(
+    key: string,
+    updateSettingDto: UpdateSettingDto,
+    companyId: string | null,
+  ) {
     // Check if exists, if not create
-    const existing = await this.settingsRepository.findOne({ where: { key } });
+    const existing = await this.settingsRepository.findOne({
+      where: {
+        key,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
+
     if (existing) {
       existing.value = updateSettingDto.value as unknown;
       return this.settingsRepository.save(existing);
@@ -36,12 +56,22 @@ export class SettingsService {
       const newSetting = this.settingsRepository.create({
         key,
         value: updateSettingDto.value as unknown,
+        companyId,
       });
       return this.settingsRepository.save(newSetting);
     }
   }
 
-  remove(key: string) {
-    return this.settingsRepository.delete(key);
+  async remove(key: string, companyId: string | null) {
+    const setting = await this.settingsRepository.findOne({
+      where: {
+        key,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
+    if (setting) {
+      return this.settingsRepository.delete(setting.id);
+    }
+    return { deleted: false };
   }
 }

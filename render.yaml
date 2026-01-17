@@ -1,0 +1,54 @@
+databases:
+  - name: pharmadesk-postgres
+    plan: free
+
+services:
+  - type: web
+    name: pharmadesk-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: https://pharmadesk-frontend.onrender.com
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: "86400"
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: pharmadesk-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: pharmadesk-postgres
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: pharmadesk-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: pharmadesk-postgres
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: pharmadesk-postgres
+          property: database
+      - key: MONGO_URI
+        sync: false
+
+  - type: static
+    name: pharmadesk-frontend
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+

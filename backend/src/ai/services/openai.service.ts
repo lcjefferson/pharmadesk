@@ -8,10 +8,11 @@ export class OpenAiService {
 
   constructor(private settingsService: SettingsService) {}
 
-  async getClient(): Promise<OpenAI | null> {
-    if (this.openai) return this.openai;
+  async getClient(companyId: string | null): Promise<OpenAI | null> {
+    // Note: We are not caching the client globally anymore because it depends on companyId
+    // If we want caching, we should cache by companyId. For now, creating new instance is fine.
 
-    const config = await this.settingsService.findOne('ai_config');
+    const config = await this.settingsService.findOne('ai_config', companyId);
     const value = config.value as unknown;
 
     if (
@@ -23,8 +24,7 @@ export class OpenAiService {
     ) {
       const apiKey = (value as { apiKey?: string }).apiKey;
       if (apiKey) {
-        this.openai = new OpenAI({ apiKey });
-        return this.openai;
+        return new OpenAI({ apiKey });
       }
     }
     return null;
@@ -33,8 +33,9 @@ export class OpenAiService {
   async analyzeImage(
     imageUrl: string,
     prompt: string = 'Analise esta imagem',
+    companyId: string | null,
   ): Promise<string> {
-    const client = await this.getClient();
+    const client = await this.getClient(companyId);
     if (!client) return 'Erro: OpenAI API Key não configurada.';
 
     try {
@@ -62,13 +63,16 @@ export class OpenAiService {
     }
   }
 
-  async transcribeAudio(_audioBuffer: Buffer): Promise<string> {
+  async transcribeAudio(
+    _audioBuffer: Buffer,
+    companyId: string | null,
+  ): Promise<string> {
     void _audioBuffer;
     // Note: This requires the buffer to be converted to a File-like object or passed correctly
     // For simplicity in this mock/prototype, we'll return a placeholder or implement if 'openai' package supports buffer directly easily
     // OpenAI node SDK expects a file-like object (ReadStream or File)
 
-    const client = await this.getClient();
+    const client = await this.getClient(companyId);
     if (!client) return 'Erro: OpenAI API Key não configurada.';
 
     try {
@@ -88,8 +92,9 @@ export class OpenAiService {
 
   async chat(
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    companyId: string | null,
   ): Promise<string> {
-    const client = await this.getClient();
+    const client = await this.getClient(companyId);
     if (!client) return 'Erro: OpenAI API Key não configurada.';
 
     try {

@@ -15,8 +15,14 @@ export class MessagesService {
     private chatProvider: IChatProvider,
   ) {}
 
-  async create(createMessageDto: CreateMessageDto): Promise<Message> {
-    const message = this.messagesRepository.create(createMessageDto);
+  async create(
+    createMessageDto: CreateMessageDto,
+    companyId: string | null,
+  ): Promise<Message> {
+    const message = this.messagesRepository.create({
+      ...createMessageDto,
+      companyId: companyId ?? null,
+    });
 
     // If message is from agent or system, send to external provider
     if (
@@ -29,22 +35,42 @@ export class MessagesService {
     return await this.messagesRepository.save(message);
   }
 
-  async findAll(clientId: string): Promise<Message[]> {
+  async findAll(
+    clientId: string,
+    companyId: string | null,
+  ): Promise<Message[]> {
     return await this.messagesRepository.find({
-      where: { clientId },
+      where: {
+        clientId,
+        ...(companyId ? { companyId } : {}),
+      },
       order: { createdAt: 'ASC' },
     });
   }
 
-  findOne(id: string) {
-    return this.messagesRepository.findOne({ where: { id } });
+  findOne(id: string, companyId: string | null) {
+    return this.messagesRepository.findOne({
+      where: {
+        id,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
   }
 
-  update(id: string, updateMessageDto: UpdateMessageDto) {
+  async update(
+    id: string,
+    updateMessageDto: UpdateMessageDto,
+    companyId: string | null,
+  ) {
+    const message = await this.findOne(id, companyId);
+    if (!message) return null;
     return this.messagesRepository.update(id, updateMessageDto);
   }
 
-  remove(id: string) {
+  async remove(id: string, companyId: string | null) {
+    // Check ownership first
+    const message = await this.findOne(id, companyId);
+    if (!message) return null;
     return this.messagesRepository.delete(id);
   }
 }

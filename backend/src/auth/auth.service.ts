@@ -8,6 +8,8 @@ export interface AuthUserPayload {
   name: string;
   email: string;
   role: string;
+  companyId?: string | null;
+  companyName?: string | null;
 }
 
 @Injectable()
@@ -28,6 +30,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        companyId: user.companyId ?? null,
+        companyName: user.companyName ?? null,
       };
       return result;
     }
@@ -35,7 +39,13 @@ export class AuthService {
   }
 
   login(user: AuthUserPayload) {
-    const payload = { username: user.email, sub: user.id, role: user.role };
+    const payload = {
+      username: user.email,
+      sub: user.id,
+      role: user.role,
+      companyId: user.companyId ?? null,
+      companyName: user.companyName ?? null,
+    };
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -43,6 +53,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        companyId: user.companyId ?? null,
+        companyName: user.companyName ?? null,
       },
     };
   }

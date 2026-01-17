@@ -22,7 +22,7 @@ export class ReportsService {
     private campaignsRepository: Repository<Campaign>,
   ) {}
 
-  async getSummary() {
+  async getSummary(companyId: string | null) {
     const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(now.getDate() - 6);
@@ -30,6 +30,8 @@ export class ReportsService {
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
+
+    const commonFilter = companyId ? { companyId } : {};
 
     const [
       totalClients,
@@ -41,25 +43,28 @@ export class ReportsService {
       totalAppointmentsUpcoming,
       totalCampaigns,
     ] = await Promise.all([
-      this.clientsRepository.count(),
+      this.clientsRepository.count({ where: commonFilter }),
       this.clientsRepository.count({
-        where: { createdAt: MoreThanOrEqual(thirtyDaysAgo) },
+        where: { ...commonFilter, createdAt: MoreThanOrEqual(thirtyDaysAgo) },
       }),
-      this.leadsRepository.count(),
-      this.leadsRepository.count({ where: { status: 'converted' } }),
-      this.messagesRepository.count(),
+      this.leadsRepository.count({ where: commonFilter }),
+      this.leadsRepository.count({
+        where: { ...commonFilter, status: 'converted' },
+      }),
+      this.messagesRepository.count({ where: commonFilter }),
       this.messagesRepository
         .createQueryBuilder('m')
         .select("DATE_TRUNC('day', m.createdAt)", 'date')
         .addSelect('COUNT(*)', 'count')
         .where('m.createdAt >= :from', { from: sevenDaysAgo.toISOString() })
+        .andWhere(companyId ? 'm.companyId = :companyId' : '1=1', { companyId })
         .groupBy('date')
         .orderBy('date', 'ASC')
         .getRawMany(),
       this.appointmentsRepository.count({
-        where: { date: MoreThanOrEqual(now) },
+        where: { ...commonFilter, date: MoreThanOrEqual(now) },
       }),
-      this.campaignsRepository.count(),
+      this.campaignsRepository.count({ where: commonFilter }),
     ]);
 
     type CampaignReachRaw = { total: string | null } | null;
@@ -67,6 +72,7 @@ export class ReportsService {
     const totalCampaignReachRaw = (await this.campaignsRepository
       .createQueryBuilder('c')
       .select('SUM(c.reach)', 'total')
+      .where(companyId ? 'c.companyId = :companyId' : '1=1', { companyId })
       .getRawOne()) as CampaignReachRaw;
 
     const messagesByDayMap: Record<string, number> = {};
@@ -94,6 +100,7 @@ export class ReportsService {
       .select('l.source', 'source')
       .addSelect('COUNT(*)', 'count')
       .where('l.source IS NOT NULL')
+      .andWhere(companyId ? 'l.companyId = :companyId' : '1=1', { companyId })
       .groupBy('l.source')
       .getRawMany();
 

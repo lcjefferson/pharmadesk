@@ -16,8 +16,8 @@ export class ErpController {
   constructor(private readonly erpService: ErpService) {}
 
   @Post()
-  create(@Body() createErpDto: CreateErpDto) {
-    return this.erpService.create(createErpDto);
+  create(@Body() _createErpDto: CreateErpDto) {
+    return this.erpService.create();
   }
 
   @Get()
@@ -31,8 +31,8 @@ export class ErpController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateErpDto: UpdateErpDto) {
-    return this.erpService.update(+id, updateErpDto);
+  update(@Param('id') id: string, @Body() _updateErpDto: UpdateErpDto) {
+    return this.erpService.update(+id);
   }
 
   @Delete(':id')

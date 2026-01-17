@@ -49,7 +49,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('msgToServer')
   async handleMessage(@MessageBody() createMessageDto: CreateMessageDto) {
-    const message = await this.messagesService.create(createMessageDto);
+    const message = await this.messagesService.create(createMessageDto, null);
     this.server.to(createMessageDto.clientId).emit('msgToClient', message);
     return message;
   }

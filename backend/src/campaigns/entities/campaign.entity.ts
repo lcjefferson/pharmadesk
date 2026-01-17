@@ -61,6 +61,9 @@ export class Campaign {
   @Column({ default: 0 })
   clicked: number;
 
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

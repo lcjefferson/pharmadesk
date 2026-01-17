@@ -25,8 +25,11 @@ export class CampaignsService {
     private messagesService: MessagesService,
   ) {}
 
-  async create(createCampaignDto: CreateCampaignDto) {
-    const campaign = this.campaignRepository.create(createCampaignDto);
+  async create(createCampaignDto: CreateCampaignDto, companyId: string | null) {
+    const campaign = this.campaignRepository.create({
+      ...createCampaignDto,
+      companyId,
+    });
     const savedCampaign = await this.campaignRepository.save(campaign);
 
     // If it's a one-shot campaign and status is scheduled or running (immediate), we could trigger dispatch
@@ -34,37 +37,56 @@ export class CampaignsService {
       savedCampaign.type === CampaignType.ONE_SHOT &&
       savedCampaign.status === CampaignStatus.RUNNING
     ) {
-      void this.dispatchCampaign(savedCampaign.id);
+      void this.dispatchCampaign(savedCampaign.id, companyId);
     }
 
     return savedCampaign;
   }
 
-  findAll() {
-    return this.campaignRepository.find({ order: { createdAt: 'DESC' } });
+  findAll(companyId: string | null) {
+    return this.campaignRepository.find({
+      where: companyId ? { companyId } : {},
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  findOne(id: string) {
-    return this.campaignRepository.findOne({ where: { id } });
+  findOne(id: string, companyId: string | null) {
+    return this.campaignRepository.findOne({
+      where: {
+        id,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
   }
 
-  async update(id: string, updateCampaignDto: UpdateCampaignDto) {
+  async update(
+    id: string,
+    updateCampaignDto: UpdateCampaignDto,
+    companyId: string | null,
+  ) {
+    const campaign = await this.findOne(id, companyId);
+    if (!campaign) {
+      return null;
+    }
     await this.campaignRepository.update(id, updateCampaignDto);
-    return this.findOne(id);
+    return this.findOne(id, companyId);
   }
 
-  async remove(id: string) {
-    await this.campaignRepository.delete(id);
-    return { deleted: true };
+  async remove(id: string, companyId: string | null) {
+    const result = await this.campaignRepository.delete({
+      id,
+      ...(companyId ? { companyId } : {}),
+    });
+    return { deleted: result.affected ? true : false };
   }
 
-  async dispatchCampaign(id: string) {
-    const campaign = await this.findOne(id);
+  async dispatchCampaign(id: string, companyId: string | null) {
+    const campaign = await this.findOne(id, companyId);
     if (!campaign) return;
 
     // 1. Fetch target audience
     // Simplified logic: fetch all clients for now, or filter by tags if implemented
-    const clients = await this.clientsService.findAll();
+    const clients = await this.clientsService.findAll(companyId);
 
     // Filter clients based on campaign.target (mock implementation)
     // In a real scenario, this would parse 'tag:vip' etc.
@@ -81,7 +103,8 @@ export class CampaignsService {
           type: MessageType.TEXT,
           sender: MessageSender.SYSTEM, // Or AGENT
         };
-        await this.messagesService.create(messageDto);
+        // Messages service will need companyId too, or we rely on it just creating
+        await this.messagesService.create(messageDto, companyId);
         sentCount++;
       } catch (error) {
         console.error(

@@ -29,6 +29,9 @@ export class Client {
   @Column({ default: 'active' })
   status: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  companyId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
