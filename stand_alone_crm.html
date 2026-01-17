@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmaDesk - Portable</title>
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzBlYTVlOSIgc3Ryb2tlLXdpZHRoPSIyIi8+CiAgPHBhdGggZD0iTTE2IDh2MTZNOCAxNmgxNiIgc3Ryb2tlPSIjMGVhNWU5IiBzdHJva2Utd2lkdGg9IjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=" />
+
+    <style>
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            background: #f8fafc;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #0ea5e9;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #error-log {
+            display: none;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border: 1px solid #fca5a5;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10000;
+            border-radius: 8px;
+            max-height: 80vh;
+            overflow: auto;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' } } } }
+        }
+    </script>
+
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@remix-run/router@1.15.1/dist/router.umd.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-router@6.22.1/dist/umd/react-router.production.min.js"></script>
+    <script crossorigin
+        src="https://unpkg.com/react-router-dom@6.22.1/dist/umd/react-router-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            const errorBox = document.getElementById('error-log');
+            const loading = document.getElementById('loading-screen');
+            if (loading) loading.style.display = 'none';
+            if (errorBox) { errorBox.style.display = 'block'; errorBox.innerHTML += `<div><strong>Erro:</strong> ${msg} <br/>Linha: ${line}</div>`; }
+            return false;
+        };
+    </script>
+</head>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-white transition-colors duration-200">
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <p class="text-slate-600 font-medium">Carregando CRM...</p>
+    </div>
+    <div id="error-log"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useContext, createContext, useMemo, useRef, Fragment } = React;
+        const { HashRouter, Routes, Route, Link, useLocation, useNavigate, Outlet, Navigate } = ReactRouterDOM;
+
+        // --- ICONS & CHARTS ---
+        const ChartComponent = ({ type, data, options }) => {
+            const canvasRef = useRef(null);
+            const chartRef = useRef(null);
+            useEffect(() => {
+                if (canvasRef.current) {
+                    if (chartRef.current) chartRef.current.destroy();
+                    try {
+                        const ctx = canvasRef.current.getContext('2d');
+                        chartRef.current = new Chart(ctx, { type, data, options: { responsive: true, maintainAspectRatio: false, ...options } });
+                    } catch (err) { console.error("Chart Error", err); }
+                }
+                return () => { if (chartRef.current) chartRef.current.destroy(); };
+            }, [type, data, options]);
+            return <canvas ref={canvasRef} />;
+        };
+
+        const Icon = ({ path, className }) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d={path} /></svg>;
+        const Icons = {
+            Home: (p) => <Icon {...p} path="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c.621 0 1.125.504 1.125 1.125V9.75c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />,
+            Users: (p) => <Icon {...p} path="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />,
+            UserPlus: (p) => <Icon {...p} path="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />,
+            Chat: (p) => <Icon {...p} path="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />,
+            Chart: (p) => <Icon {...p} path="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625z" />,
+            Cog: (p) => <Icon {...p} path="M10.34 15.84c-.688-.06-1.386-.2-2.066-.411l-1.936 2.508c-.768.995-2.328.745-2.704-.433l-.116-.367c-.206-.65.253-1.332.906-1.574 1.344-.499 2.527-1.378 3.443-2.529.988-1.24.97-2.956-.16-4.045a4.484 4.484 0 00-1.879-1.1A2.5 2.5 0 016.974 4.7l.08-.186c.338-.788 1.487-1.002 2.115-.41l2.427 2.296c.642.607 1.583.743 2.373.328a6.76 6.76 0 012.397-.732c.9-.115 1.638.56 1.705 1.464l.033.435c.046.608-.291 1.178-.85 1.44a4.49 4.49 0 00-1.745 1.48c-.628.915-.65 2.08-.005 3.012a4.46 4.46 0 001.696 1.465c.594.301.916.953.791 1.604l-.105.545c-.198 1.03-1.383 1.545-2.28 1.054l-2.258-1.238a3.738 3.738 0 01-1.921-2.986z" />,
+            Sun: (p) => <Icon {...p} path="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.242l-1.591 1.591M3 12h2.25m1.364-7.955l1.591 1.591M12 5.454a6.546 6.546 0 110 13.092 6.546 6.546 0 010-13.092z" />,
+            Moon: (p) => <Icon {...p} path="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />,
+            X: (p) => <Icon {...p} path="M6 18L18 6M6 6l12 12" />,
+            Plus: (p) => <Icon {...p} path="M12 4.5v15m7.5-7.5h-15" />,
+            Search: (p) => <Icon {...p} path="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />,
+            Megaphone: (p) => <Icon {...p} path="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h9.75l.334-.39a3.253 3.253 0 000-4.22L17.25 16.5a2.25 2.25 0 002.25-2.25V3.75a2.25 2.25 0 00-2.25-2.25H10.5z" />,
+            Sparkles: (p) => <Icon {...p} path="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />,
+            PaperAirplane: (p) => <Icon {...p} path="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />,
+            Lock: (p) => <Icon {...p} path="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />,
+            Logout: (p) => <Icon {...p} path="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />,
+            Trash: (p) => <Icon {...p} path="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />,
+            Menu: (p) => <Icon {...p} path="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />,
+            Calendar: ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+            Sparkles: ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+            CurrencyDollar: ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+            ChartBar: ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+            Paperclip: (p) => <Icon {...p} path="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />,
+            Microphone: (p) => <Icon {...p} path="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />,
+        };
+
+        // --- MOCK DATA ---
+        const USERS = [{ id: 1, name: 'Admin User', email: 'admin@pharmadesk.com', role: 'admin', avatar: 'https://ui-avatars.com/api/?name=Admin+User' }];
+        const CLIENTS = [
+            { id: 1, name: 'João Silva', phone: '11999887766', email: 'joao@email.com', tags: ['vip', 'recorrente'], status: 'active' },
+            { id: 2, name: 'Maria Souza', phone: '11988776655', email: 'maria@email.com', tags: ['novo'], status: 'lead' }
+        ];
+        const TICKETS = [
+            { id: 101, clientId: 1, status: 'open', priority: 'high', messages: [{ id: 1, sender: 'client', text: 'Bom dia, orcamento?', timestamp: '2023-10-25T10:00:00' }] }
+        ];
+        const KPIS = {
+            firstResponseTime: '2m', avgResponseTime: '5m', clientsServed: 124, newClients: 15, aiBudgets: 45, messagesExchanged: 3200,
+            totalRevenue: 125000, conversionRate: 18, avgTicket: 1250, startedChats: 34, postponedEvents: 5, newClientsToday: 3, aiQuotesGenerated: 12, operatorMessages: 145, avgHandlingTime: '12m 30s'
+        };
+        const CAMPAIGNS = [{ id: 1, name: 'Promoção de Inverno', status: 'sent', target: 'VIPs', sent_at: '2023-06-15', reach: 1540 }];
+        const EVENTS = [{ id: 1, title: 'Reunião Inicial', date: '2023-10-25', time: '14:00', clientId: 1 }, { id: 2, title: 'Follow-up', date: '2023-10-26', time: '10:00', clientId: 2 }];
+        const CHART_DATA = {
+            sales: { labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'], datasets: [{ label: 'Vendas (R$)', data: [12000, 19000, 15000, 22000, 25000, 32000], backgroundColor: '#0ea5e9' }] },
+            leads: { labels: ['Instagram', 'Google', 'Indicação', 'Linkedin'], datasets: [{ label: 'Origem dos Leads', data: [45, 30, 15, 10], backgroundColor: ['#ec4899', '#3b82f6', '#22c55e', '#a855f7'] }] },
+            operatorPerformance: { labels: ['Ana', 'Carlos', 'Beatriz'], datasets: [{ label: 'Orçamentos IA', data: [5, 3, 4], backgroundColor: '#8b5cf6' }, { label: 'Mensagens', data: [50, 45, 60], backgroundColor: '#3b82f6' }] }
+        };
+
+        const MockService = {
+            getClients: async () => { await new Promise(r => setTimeout(r, 400)); return [...CLIENTS]; },
+            getTickets: async () => { await new Promise(r => setTimeout(r, 400)); return [...TICKETS]; },
+            getKPIs: async () => { await new Promise(r => setTimeout(r, 300)); return { ...KPIS }; },
+            getUsers: async () => { await new Promise(r => setTimeout(r, 300)); return JSON.parse(localStorage.getItem('crm_users')) || [...USERS]; },
+            saveUsers: async (users) => { localStorage.setItem('crm_users', JSON.stringify(users)); },
+            getCampaigns: async () => { await new Promise(r => setTimeout(r, 400)); return [...CAMPAIGNS]; },
+            getChartData: async () => { await new Promise(r => setTimeout(r, 300)); return { ...CHART_DATA }; },
+            // Agenda
+            getEvents: async () => { await new Promise(r => setTimeout(r, 300)); return JSON.parse(localStorage.getItem('crm_events')) || [...EVENTS]; },
+            addEvent: async (evt) => { const e = { id: Date.now(), ...evt }; const evts = JSON.parse(localStorage.getItem('crm_events')) || [...EVENTS]; evts.unshift(e); localStorage.setItem('crm_events', JSON.stringify(evts)); return e; },
+            deleteEvent: async (id) => { const evts = (JSON.parse(localStorage.getItem('crm_events')) || [...EVENTS]).filter(e => e.id !== id); localStorage.setItem('crm_events', JSON.stringify(evts)); },
+            // AI
+            getChatSummary: (clientId) => new Promise(resolve => setTimeout(() => resolve({ summary: "Cliente interessado no plano Premium. Mencionou orçamento de R$ 5.000. Ponto de atenção: integração com API." }), 1000))
+        };
+
+        const useFetchMock = (fn) => {
+            const [data, setData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            useEffect(() => { let m = true; fn().then(r => m && setData(r)).finally(() => m && setLoading(false)); return () => m = false; }, [fn]);
+            return { data, loading, setData };
+        };
+
+        // --- CONTEXTS ---
+        const AuthContext = createContext();
+        const AuthProvider = ({ children }) => {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const stored = localStorage.getItem('auth_user');
+                if (stored) setUser(JSON.parse(stored));
+                setLoading(false);
+            }, []);
+
+            const login = (email, password) => {
+                // Mock Auth
+                if (email === 'admin@pharmadesk.com' && password === 'admin') {
+                    const u = { id: 1, name: 'Admin', email, role: 'admin', avatar: 'https://ui-avatars.com/api/?name=Admin' };
+                    setUser(u);
+                    localStorage.setItem('auth_user', JSON.stringify(u));
+                    return true;
+                }
+                return false;
+            };
+
+            const logout = () => {
+                setUser(null);
+                localStorage.removeItem('auth_user');
+            };
+
+            return <AuthContext.Provider value={{ user, login, logout, loading }}>{children}</AuthContext.Provider>;
+        };
+        const useAuth = () => useContext(AuthContext);
+
+        const ThemeContext = createContext();
+        const ThemeProvider = ({ children }) => {
+            const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+            useEffect(() => { document.documentElement.className = theme; localStorage.setItem('theme', theme); }, [theme]);
+            const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
+            return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
+        };
+        const useTheme = () => useContext(ThemeContext);
+
+        // --- COMPONENTS ---
+        const Modal = ({ open, onClose, title, children }) => {
+            if (!open) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
+                    <div className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6 fade-in max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold dark:text-white">{title}</h3><button onClick={onClose}><Icons.X className="h-6 w-6 text-slate-500" /></button></div>
+                        {children}
+                    </div>
+                </div>
+            );
+        };
+
+        const Sidebar = ({ isOpen, onClose }) => {
+            const location = useLocation();
+            const { logout } = useAuth();
+            const items = [
+                { name: 'Dashboard', href: '/', icon: Icons.Home },
+                { name: 'Agenda', href: '/agenda', icon: Icons.Calendar },
+                { name: 'Clientes', href: '/clients', icon: Icons.Users },
+                { name: 'Leads', href: '/leads', icon: Icons.UserPlus },
+                { name: 'Atendimento', href: '/service', icon: Icons.Chat },
+                { name: 'Campanhas', href: '/campaigns', icon: Icons.Megaphone },
+                { name: 'Relatórios', href: '/reports', icon: Icons.Chart },
+                { name: 'Usuários', href: '/users', icon: Icons.Users },
+                { name: 'Configurações', href: '/settings', icon: Icons.Cog },
+            ];
+            return (
+                <>
+                    <div className={`fixed inset-0 bg-black/50 z-40 md:hidden ${isOpen ? 'block' : 'hidden'}`} onClick={onClose}></div>
+                    <div className={`fixed inset-y-0 left-0 bg-slate-900 text-white w-64 z-50 transform transition-transform duration-300 md:relative md:translate-x-0 flex flex-col h-full shrink-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="h-24 flex items-center justify-center bg-slate-900 font-bold text-xl px-4 border-b border-slate-800">
+                            <div className="flex items-center justify-center w-full">
+                                <svg id="Camada_2" data-name="Camada 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2197.62 343.09" className="h-20 w-auto text-white">
+                                    <defs>
+                                        <style>{`.cls-1{fill:#0284c7}.cls-1,.cls-2{fill-rule:evenodd}.cls-2,.cls-3{fill:#ffffff}`}</style>
+                                    </defs>
+                                    <g id="Camada_1-2" data-name="Camada 1">
+                                        <g>
+                                            <path className="cls-2" d="M2169.92,166.71c17.2,18.74,27.7,43.72,27.7,71.14,0,29.06-11.78,55.37-30.83,74.42-19.04,19.04-45.35,30.82-74.41,30.82h-332.27c-37.66-.34-71.72-15.74-96.45-40.48-25.01-25.01-40.48-59.55-40.48-97.71s15.47-72.7,40.48-97.71c25.01-25,59.55-40.47,97.7-40.47,2.6,0,5.19.08,7.77.21,14.02-17.56,31.25-31.99,50.56-42.67,24.81-13.72,53.01-21.25,82.2-21.25,35.03,0,67.57,10.59,94.62,28.75v38.17h-53.41c-12.74-5.1-26.65-7.91-41.21-7.91-19.18,0-37.65,4.91-53.85,13.87-5.51,3.04-10.76,6.57-15.7,10.52,6.68,4.02,13.01,8.58,18.91,13.64,24.36,20.91,41.49,50.23,46.68,83.94,2.42,16.1-8.68,31.12-24.79,33.54-16.1,2.42-31.12-8.68-33.54-24.78-2.97-19.31-12.73-36.06-26.62-47.98-13.91-11.94-32.01-19.05-51.63-19.05-21.86,0-41.66,8.86-55.98,23.19-14.33,14.32-23.19,34.12-23.19,55.98s8.86,41.66,23.19,55.98c14.32,14.33,34.12,23.19,55.98,23.19h331.01c12.77,0,24.32-5.18,32.69-13.54,8.37-8.36,13.54-19.92,13.54-32.69s-5.17-24.32-13.54-32.68c-7.06-7.06-16.4-11.85-26.82-13.17v-20.33h56.08c5.79,0,11.17-1.84,15.6-4.96" />
+                                            <path className="cls-1" d="M2009.89,13.87v69.45h-69.44c-7.63,0-13.87,6.24-13.87,13.87v47.24c0,7.63,6.24,13.87,13.87,13.87h69.44v69.45c0,7.63,6.24,13.87,13.87,13.87h47.24c7.63,0,13.87-6.24,13.87-13.87v-69.45h69.45c7.63,0,13.87-6.24,13.87-13.87v-47.24c0-7.63-6.24-13.87-13.87-13.87h-69.45V13.87c0-7.63-6.24-13.87-13.87-13.87h-47.24c-7.63,0-13.87,6.24-13.87,13.87" />
+                                            <g>
+                                                <path className="cls-3" d="M0,159.92h66.43c70.67,0,76.6,37.03,76.6,61.9s-3.67,61.06-74.34,61.06h-28.55v57.95H0v-180.91ZM68.12,250.94c29.68,0,33.92-16.11,33.92-28.55s-4.24-29.11-33.92-29.11h-27.98v57.66h27.98Z" />
+                                                <path className="cls-3" d="M171.01,140.98h38.44v71.23c3.96-7.92,17.24-18.37,41.27-18.37,45.79,0,55.69,28.27,55.69,68.97v78.02h-38.73v-81.69c0-21.77-4.24-32.51-28.27-32.51s-29.68,10.18-29.68,32.51l-.28,81.69h-38.44v-199.85Z" />
+                                                <path className="cls-3" d="M326.19,297.86c0-27.42,18.09-39.29,60.49-42.97l38.44-3.39c-.28-19.5-7.63-27.7-29.12-27.7s-26.57,9.33-26.57,23.46l-38.44.28c0-29.68,12.15-53.71,64.17-53.71,60.21,0,68.69,26.57,68.69,65.01v81.97h-16.4l-8.76-23.18c-8.48,13.29-25.44,25.44-54.84,25.44-32.22,0-57.66-14.13-57.66-45.23ZM393.19,312.85c26.29,0,31.66-16.39,31.94-35.33l-32.51,3.67c-20.07,2.26-26.01,7.07-26.01,14.7,0,9.89,7.63,16.96,26.57,16.96Z" />
+                                                <path className="cls-3" d="M491.55,196.1h16.11l9.05,22.9c9.04-19.22,25.44-28.55,52.86-24.59v34.77c-33.64-3.67-39.29,17.81-39.29,38.16v73.49h-38.73v-144.73Z" />
+                                                <path className="cls-3" d="M587.38,196.1h16.68l8.76,23.74c5.94-11.87,19.79-26.01,47.21-26.01,19.22,0,32.51,7.35,40.14,21.48,4.81-8.76,16.4-21.48,42.97-21.48,39.57,0,48.05,28.55,48.05,60.77v86.21h-39.29v-88.76c0-13.85-3.11-25.44-21.2-25.44s-21.77,11.31-21.77,25.44v88.76h-39.29v-88.76c0-13.85-3.11-25.44-21.2-25.44s-22.33,11.87-22.33,26.01v88.19h-38.73v-144.73Z" />
+                                                <path className="cls-3" d="M811.25,297.86c0-27.42,18.09-39.29,60.49-42.97l38.44-3.39c-.28-19.5-7.63-27.7-29.12-27.7s-26.57,9.33-26.57,23.46l-38.44.28c0-29.68,12.15-53.71,64.17-53.71,60.21,0,68.69,26.57,68.69,65.01v81.97h-16.4l-8.76-23.18c-8.48,13.29-25.44,25.44-54.84,25.44-32.22,0-57.66-14.13-57.66-45.23ZM878.24,312.85c26.29,0,31.66-16.39,31.94-35.33l-32.51,3.67c-20.07,2.26-26.01,7.07-26.01,14.7,0,9.89,7.63,16.96,26.57,16.96Z" />
+                                                <path className="cls-3" d="M978.58,159.92h68.41c52.86,0,80,31.09,80,89.32s-29.11,91.58-83.39,91.58h-65.01v-180.91ZM1040.21,322.74c42.97,0,65.58-22.05,65.58-73.49s-21.2-71.23-63.88-71.23h-41.27v144.73h39.57Z" />
+                                                <path className="cls-3" d="M1146.2,267.62c0-37.31,14.7-73.21,72.08-73.21,50.6,0,65.58,31.94,65.58,72.08,0,3.96,0,6.78-.28,10.74h-115.05c1.41,28.55,14.42,48.62,49.47,48.62,30.25,0,41.27-14.98,43.81-30.25h22.05c-2.26,24.88-18.94,46.92-65.3,46.92-59.08,0-72.36-35.9-72.36-74.91ZM1261.82,260.27c0-27.7-12.44-48.9-45.23-48.9-36.75,0-47.21,22.9-48.05,48.9h93.28Z" />
+                                                <path className="cls-3" d="M1297.71,286.84h20.63c-.28,24.59,13.85,38.44,47.49,38.44,30.81,0,41.55-12.72,41.55-23.74,0-37.03-106.57-14.42-106.57-66.14,0-22.61,16.39-40.99,61.62-40.99s61.9,21.77,61.9,53.42h-19.79c-.56-22.61-11.31-36.46-42.68-36.46-33.92,0-39.86,12.44-39.86,23.74,0,33.64,105.72,12.72,105.72,65.3,0,20.64-16.96,42.12-61.62,42.12-47.77,0-69.25-18.94-68.41-55.69Z" />
+                                                <path className="cls-3" d="M1449.78,140.98h20.92v115.05l66.14-59.93h31.09l-80.28,68.69,87.34,76.04h-30.25l-74.06-66.99v66.99h-20.92v-199.85Z" />
+                                            </g>
+                                        </g>
+                                    </g>
+                                </svg>
+                            </div>
+                            <button onClick={onClose} className="md:hidden absolute right-4"><Icons.X className="w-6 h-6 text-white" /></button>
+                        </div>
+                        <nav className="flex-1 p-2 space-y-1">{items.map(i => (
+                            <Link key={i.name} to={i.href} onClick={() => onClose && onClose()} className={`flex items-center px-4 py-3 rounded-md transition-colors ${location.pathname === i.href ? 'bg-slate-800 text-primary-400' : 'text-slate-300 hover:bg-slate-800'}`}>
+                                <i.icon className="h-6 w-6 mr-3" /> {i.name}
+                            </Link>
+                        ))}</nav>
+                        <div className="p-4 border-t border-slate-700">
+                            <button onClick={logout} className="flex items-center text-slate-400 hover:text-white w-full"><Icons.Logout className="w-5 h-5 mr-2" /> Sair</button>
+                        </div>
+                    </div>
+                </>
+            );
+        };
+
+        const Header = ({ title, onMenuClick }) => {
+            const { theme, toggleTheme } = useTheme();
+            const { user } = useAuth();
+            return (
+                <header className="h-16 bg-white dark:bg-slate-800 shadow-sm flex items-center justify-between px-4 sm:px-6 z-10 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onMenuClick} className="md:hidden text-slate-500 hover:bg-slate-100 p-2 rounded-md"><Icons.Menu className="w-6 h-6" /></button>
+                        <h1 className="text-xl font-semibold text-slate-800 dark:text-white truncate">{title}</h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={toggleTheme} className="text-slate-500 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700">{theme === 'light' ? <Icons.Moon className="h-6 w-6" /> : <Icons.Sun className="h-6 w-6" />}</button>
+                        <div className="flex items-center gap-2"><span className="text-sm font-medium dark:text-white hidden sm:block">{user?.name}</span><img src={user?.avatar} className="h-8 w-8 rounded-full bg-slate-200" /></div>
+                    </div>
+                </header>
+            );
+        };
+
+        const Layout = () => {
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+                    <div className="flex-1 flex flex-col min-w-0">
+                        <Header title="PharmaDesk" onMenuClick={() => setSidebarOpen(true)} />
+                        <main className="flex-1 overflow-auto p-4 sm:p-6 pb-20 sm:pb-6 relative">
+                            <Outlet />
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const Login = () => {
+            const { login, user } = useAuth();
+            const [email, setEmail] = useState('admin@pharmadesk.com');
+            const [pass, setPass] = useState('admin');
+            const [error, setError] = useState('');
+            if (user) return <Navigate to="/" />;
+            const handleSubmit = (e) => { e.preventDefault(); if (!login(email, pass)) setError('Credenciais inválidas. Tente admin@pharmadesk.com / admin'); };
+            return (
+                <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+                        <div className="text-center mb-6">
+                            <div className="flex justify-center mb-4">
+                                <svg id="Camada_2" data-name="Camada 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2197.62 343.09" className="h-12 w-auto dark:invert">
+                                    <defs>
+                                        <style>{`.cls-1{fill:#0284c7}.cls-1,.cls-2{fill-rule:evenodd}.cls-2,.cls-3{fill:#0f172a}`}</style>
+                                    </defs>
+                                    <g id="Camada_1-2" data-name="Camada 1">
+                                        <g>
+                                            <path className="cls-2" d="M2169.92,166.71c17.2,18.74,27.7,43.72,27.7,71.14,0,29.06-11.78,55.37-30.83,74.42-19.04,19.04-45.35,30.82-74.41,30.82h-332.27c-37.66-.34-71.72-15.74-96.45-40.48-25.01-25.01-40.48-59.55-40.48-97.71s15.47-72.7,40.48-97.71c25.01-25,59.55-40.47,97.7-40.47,2.6,0,5.19.08,7.77.21,14.02-17.56,31.25-31.99,50.56-42.67,24.81-13.72,53.01-21.25,82.2-21.25,35.03,0,67.57,10.59,94.62,28.75v38.17h-53.41c-12.74-5.1-26.65-7.91-41.21-7.91-19.18,0-37.65,4.91-53.85,13.87-5.51,3.04-10.76,6.57-15.7,10.52,6.68,4.02,13.01,8.58,18.91,13.64,24.36,20.91,41.49,50.23,46.68,83.94,2.42,16.1-8.68,31.12-24.79,33.54-16.1,2.42-31.12-8.68-33.54-24.78-2.97-19.31-12.73-36.06-26.62-47.98-13.91-11.94-32.01-19.05-51.63-19.05-21.86,0-41.66,8.86-55.98,23.19-14.33,14.32-23.19,34.12-23.19,55.98s8.86,41.66,23.19,55.98c14.32,14.33,34.12,23.19,55.98,23.19h331.01c12.77,0,24.32-5.18,32.69-13.54,8.37-8.36,13.54-19.92,13.54-32.69s-5.17-24.32-13.54-32.68c-7.06-7.06-16.4-11.85-26.82-13.17v-20.33h56.08c5.79,0,11.17-1.84,15.6-4.96" />
+                                            <path className="cls-1" d="M2009.89,13.87v69.45h-69.44c-7.63,0-13.87,6.24-13.87,13.87v47.24c0,7.63,6.24,13.87,13.87,13.87h69.44v69.45c0,7.63,6.24,13.87,13.87,13.87h47.24c7.63,0,13.87-6.24,13.87-13.87v-69.45h69.45c7.63,0,13.87-6.24,13.87-13.87v-47.24c0-7.63-6.24-13.87-13.87-13.87h-69.45V13.87c0-7.63-6.24-13.87-13.87-13.87h-47.24c-7.63,0-13.87,6.24-13.87,13.87" />
+                                            <g>
+                                                <path className="cls-3" d="M0,159.92h66.43c70.67,0,76.6,37.03,76.6,61.9s-3.67,61.06-74.34,61.06h-28.55v57.95H0v-180.91ZM68.12,250.94c29.68,0,33.92-16.11,33.92-28.55s-4.24-29.11-33.92-29.11h-27.98v57.66h27.98Z" />
+                                                <path className="cls-3" d="M171.01,140.98h38.44v71.23c3.96-7.92,17.24-18.37,41.27-18.37,45.79,0,55.69,28.27,55.69,68.97v78.02h-38.73v-81.69c0-21.77-4.24-32.51-28.27-32.51s-29.68,10.18-29.68,32.51l-.28,81.69h-38.44v-199.85Z" />
+                                                <path className="cls-3" d="M326.19,297.86c0-27.42,18.09-39.29,60.49-42.97l38.44-3.39c-.28-19.5-7.63-27.7-29.12-27.7s-26.57,9.33-26.57,23.46l-38.44.28c0-29.68,12.15-53.71,64.17-53.71,60.21,0,68.69,26.57,68.69,65.01v81.97h-16.4l-8.76-23.18c-8.48,13.29-25.44,25.44-54.84,25.44-32.22,0-57.66-14.13-57.66-45.23ZM393.19,312.85c26.29,0,31.66-16.39,31.94-35.33l-32.51,3.67c-20.07,2.26-26.01,7.07-26.01,14.7,0,9.89,7.63,16.96,26.57,16.96Z" />
+                                                <path className="cls-3" d="M491.55,196.1h16.11l9.05,22.9c9.04-19.22,25.44-28.55,52.86-24.59v34.77c-33.64-3.67-39.29,17.81-39.29,38.16v73.49h-38.73v-144.73Z" />
+                                                <path className="cls-3" d="M587.38,196.1h16.68l8.76,23.74c5.94-11.87,19.79-26.01,47.21-26.01,19.22,0,32.51,7.35,40.14,21.48,4.81-8.76,16.4-21.48,42.97-21.48,39.57,0,48.05,28.55,48.05,60.77v86.21h-39.29v-88.76c0-13.85-3.11-25.44-21.2-25.44s-21.77,11.31-21.77,25.44v88.76h-39.29v-88.76c0-13.85-3.11-25.44-21.2-25.44s-22.33,11.87-22.33,26.01v88.19h-38.73v-144.73Z" />
+                                                <path className="cls-3" d="M811.25,297.86c0-27.42,18.09-39.29,60.49-42.97l38.44-3.39c-.28-19.5-7.63-27.7-29.12-27.7s-26.57,9.33-26.57,23.46l-38.44.28c0-29.68,12.15-53.71,64.17-53.71,60.21,0,68.69,26.57,68.69,65.01v81.97h-16.4l-8.76-23.18c-8.48,13.29-25.44,25.44-54.84,25.44-32.22,0-57.66-14.13-57.66-45.23ZM878.24,312.85c26.29,0,31.66-16.39,31.94-35.33l-32.51,3.67c-20.07,2.26-26.01,7.07-26.01,14.7,0,9.89,7.63,16.96,26.57,16.96Z" />
+                                                <path className="cls-3" d="M978.58,159.92h68.41c52.86,0,80,31.09,80,89.32s-29.11,91.58-83.39,91.58h-65.01v-180.91ZM1040.21,322.74c42.97,0,65.58-22.05,65.58-73.49s-21.2-71.23-63.88-71.23h-41.27v144.73h39.57Z" />
+                                                <path className="cls-3" d="M1146.2,267.62c0-37.31,14.7-73.21,72.08-73.21,50.6,0,65.58,31.94,65.58,72.08,0,3.96,0,6.78-.28,10.74h-115.05c1.41,28.55,14.42,48.62,49.47,48.62,30.25,0,41.27-14.98,43.81-30.25h22.05c-2.26,24.88-18.94,46.92-65.3,46.92-59.08,0-72.36-35.9-72.36-74.91ZM1261.82,260.27c0-27.7-12.44-48.9-45.23-48.9-36.75,0-47.21,22.9-48.05,48.9h93.28Z" />
+                                                <path className="cls-3" d="M1297.71,286.84h20.63c-.28,24.59,13.85,38.44,47.49,38.44,30.81,0,41.55-12.72,41.55-23.74,0-37.03-106.57-14.42-106.57-66.14,0-22.61,16.39-40.99,61.62-40.99s61.9,21.77,61.9,53.42h-19.79c-.56-22.61-11.31-36.46-42.68-36.46-33.92,0-39.86,12.44-39.86,23.74,0,33.64,105.72,12.72,105.72,65.3,0,20.64-16.96,42.12-61.62,42.12-47.77,0-69.25-18.94-68.41-55.69Z" />
+                                                <path className="cls-3" d="M1449.78,140.98h20.92v115.05l66.14-59.93h31.09l-80.28,68.69,87.34,76.04h-30.25l-74.06-66.99v66.99h-20.92v-199.85Z" />
+                                            </g>
+                                        </g>
+                                    </g>
+                                </svg>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400">Faça login para continuar</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">{error && <div className="bg-red-100 text-red-700 p-2 rounded text-sm text-center">{error}</div>}<div><label className="text-sm dark:text-slate-300">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><div><label className="block text-sm mb-1 dark:text-white">Senha</label><input required type="password" name="password" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><button type="submit" className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 font-bold">Entrar</button></form>
+                        <div className="mt-4 text-center text-xs text-slate-400">Dica: admin@pharmadesk.com / admin</div>
+                    </div>
+                </div>
+            );
+        };
+        const RequireAuth = ({ children }) => { const { user, loading } = useAuth(); if (loading) return null; return user ? children : <Navigate to="/login" />; };
+
+        // --- FEATURE PAGES ---
+        const Agenda = () => {
+            const { data: events, setData: setEvents } = useFetchMock(MockService.getEvents);
+            const { data: clients } = useFetchMock(MockService.getClients);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            if (!events) return <div>Carregando...</div>;
+            const handleCreateEvent = (e) => { e.preventDefault(); const fd = new FormData(e.target); const newEvent = { title: fd.get('title'), date: fd.get('date'), time: fd.get('time'), clientId: fd.get('clientId') }; MockService.addEvent(newEvent).then(evt => { setEvents([evt, ...events]); setIsModalOpen(false); }); };
+            const handleDelete = (id) => { if (confirm('Remover agendamento?')) { MockService.deleteEvent(id).then(() => { setEvents(events.filter(e => e.id !== id)); }); } };
+            const sortedEvents = [...events].sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold dark:text-white">Agenda</h2><button onClick={() => setIsModalOpen(true)} className="bg-primary-600 text-white px-4 py-2 rounded flex items-center gap-2"><Icons.Plus className="w-5 h-5" /> Novo Agendamento</button></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{sortedEvents.map(evt => (<div key={evt.id} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow border-l-4 border-primary-500 relative group"><button onClick={() => handleDelete(evt.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"><Icons.Trash className="w-4 h-4" /></button><div className="flex items-start justify-between mb-2"><div className="font-bold dark:text-white">{evt.title}</div></div><div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mb-2"><Icons.Calendar className="w-4 h-4" /><span>{new Date(evt.date).toLocaleDateString()} às {evt.time}</span></div>{evt.clientId && clients && (<div className="text-xs bg-slate-100 dark:bg-slate-700 p-1 rounded inline-block">Cliente: {clients.find(c => c.id == evt.clientId)?.name || 'N/A'}</div>)}</div>))}</div>
+                    <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Compromisso"><form onSubmit={handleCreateEvent} className="space-y-4"><div><label className="block text-sm mb-1 dark:text-white">Título</label><input required name="title" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm mb-1 dark:text-white">Data</label><input required type="date" name="date" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><div><label className="block text-sm mb-1 dark:text-white">Hora</label><input required type="time" name="time" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div></div><div><label className="block text-sm mb-1 dark:text-white">Vincular Cliente</label><select name="clientId" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white"><option value="">Selecione...</option>{clients?.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}</select></div><div className="flex justify-end"><button className="bg-primary-600 text-white px-4 py-2 rounded">Salvar</button></div></form></Modal>
+                </div>
+            );
+        };
+        const Dashboard = () => {
+            const { data: kpis } = useFetchMock(MockService.getKPIs);
+            if (!kpis) return <div>Carregando...</div>;
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">{[{ t: 'T.M. Resposta', v: kpis.avgResponseTime, b: 'bg-blue-500' }, { t: 'Novos Clientes', v: kpis.newClients, b: 'bg-green-500' }, { t: 'Msgs Trocadas', v: kpis.messagesExchanged, b: 'bg-purple-500' }, { t: 'Orçamentos', v: kpis.aiBudgets, b: 'bg-amber-500' }].map(k => (<div key={k.t} className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center"><div><p className="text-sm text-slate-500 dark:text-slate-400">{k.t}</p><p className="text-2xl font-bold dark:text-white">{k.v}</p></div><div className={`h-10 w-10 rounded-full ${k.b}`}></div></div>))}</div>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow h-80"><h3 className="mb-4 font-semibold dark:text-white">Tendência Semanal</h3><div className="h-64"><ChartComponent type="line" data={{ labels: ['S', 'T', 'Q', 'Q', 'S', 'S'], datasets: [{ label: 'Vendas', data: [12, 19, 3, 5, 2, 3], borderColor: '#0ea5e9' }] }} /></div></div>
+                </div>
+            );
+        };
+        const Clients = () => {
+            const { data: clients, setData: setClients } = useFetchMock(MockService.getClients);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [statusFilter, setStatusFilter] = useState('active');
+            const [tagFilter, setTagFilter] = useState('');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const navigate = useNavigate();
+            if (!clients) return <div>Carregando...</div>;
+            const allTags = [...new Set(clients.flatMap(c => c.tags))];
+            const filteredClients = clients.filter(c => {
+                const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+                const matchesTag = tagFilter === '' || c.tags.includes(tagFilter);
+                const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesStatus && matchesTag && matchesSearch;
+            });
+            const handleCreateClient = (e) => { e.preventDefault(); const fd = new FormData(e.target); setClients(p => [{ id: Date.now(), name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'), tags: fd.get('tags').split(','), status: 'active' }, ...p]); setIsModalOpen(false); };
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between"><div className="flex flex-1 gap-2"><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar..." className="flex-1 border p-2 rounded dark:bg-slate-700 dark:text-white dark:border-slate-600" /><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border p-2 rounded dark:bg-slate-700 dark:text-white"><option value="all">Todos</option><option value="active">Ativos</option><option value="lead">Leads</option><option value="inactive">Inativos</option></select><select value={tagFilter} onChange={e => setTagFilter(e.target.value)} className="border p-2 rounded dark:bg-slate-700 dark:text-white"><option value="">Tags</option>{allTags.map(t => <option key={t} value={t}>{t}</option>)}</select></div><button onClick={() => setIsModalOpen(true)} className="bg-primary-600 text-white px-4 py-2 rounded flex items-center gap-2"><Icons.Plus className="w-5 h-5" /> Novo</button></div>
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700"><thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Nome</th><th className="px-6 py-3 text-left">Telefone</th><th className="px-6 py-3 text-left">Status</th><th className="px-6 py-3 text-left">Ações</th></tr></thead><tbody className="divide-y divide-slate-200 dark:divide-slate-700">{filteredClients.map(c => (<tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700"><td className="px-6 py-4 dark:text-white"><div>{c.name}</div><div className="text-sm text-slate-500">{c.email}</div></td><td className="px-6 py-4 dark:text-slate-300">{c.phone}</td><td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs uppercase ${c.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{c.status}</span></td><td className="px-6 py-4"><button onClick={() => navigate('/service', { state: { client: c } })} className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 flex items-center gap-1 text-xs px-3"><Icons.Chat className="w-4 h-4" /> Omni</button></td></tr>))}</tbody></table>{filteredClients.length === 0 && <div className="p-8 text-center text-slate-500">Nenhum cliente.</div>}</div>
+                    <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Cliente"><form onSubmit={handleCreateClient} className="space-y-4"><input required name="name" placeholder="Nome" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /><input required name="phone" placeholder="Telefone" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /><input name="email" placeholder="Email" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /><input name="tags" placeholder="Tags" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /><div className="flex justify-end"><button className="bg-primary-600 text-white px-4 py-2 rounded">Salvar</button></div></form></Modal>
+                </div>
+            );
+        };
+        const Leads = () => {
+            const { data: clients, setData: setClients } = useFetchMock(MockService.getClients);
+            const [isCapturing, setIsCapturing] = useState(false);
+            const navigate = useNavigate();
+            if (!clients) return <div>Carregando...</div>;
+            const leads = clients.filter(c => c.status === 'lead');
+            const simulateCapture = () => { setIsCapturing(true); setTimeout(() => { const newLead = { id: Date.now(), name: 'Lead Simulado ' + Date.now().toString().slice(-4), email: 'lead@teste.com', phone: '11900000000', tags: ['novo_lead'], status: 'lead' }; setClients(p => [newLead, ...p]); setIsCapturing(false); }, 2000); };
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="flex justify-between items-center bg-blue-50 dark:bg-slate-800 p-4 rounded-lg border border-blue-100 dark:border-slate-700"><div><h2 className="text-lg font-bold text-blue-900 dark:text-white">Captura de Leads</h2><p className="text-sm text-blue-700 dark:text-slate-400">Simule a entrada de leads.</p></div><button onClick={simulateCapture} disabled={isCapturing} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50">{isCapturing ? 'Capturando...' : 'Simular Captura Auto'}</button></div>
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700"><thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Nome</th><th className="px-6 py-3 text-left">Ações</th></tr></thead><tbody className="divide-y divide-slate-200 dark:divide-slate-700">{leads.map(l => (<tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-700"><td className="px-6 py-4 dark:text-white"><div>{l.name}</div><div className="text-sm text-slate-500">{l.email}</div></td><td className="px-6 py-4 flex gap-2"><button onClick={() => navigate('/service', { state: { client: l } })} className="bg-slate-500 text-white p-2 rounded hover:bg-slate-600 flex items-center gap-1 text-xs px-3"><Icons.Chat className="w-4 h-4" /> Omnichannel</button><button onClick={() => { if (confirm('Converter?')) { setClients(p => p.map(x => x.id === l.id ? { ...x, status: 'active' } : x)); } }} className="text-green-600 hover:text-green-800 font-medium text-sm border border-green-200 bg-green-50 px-3 py-1 rounded">Converter</button></td></tr>))}</tbody></table></div>
+                </div>
+            );
+        };
+        const Service = () => {
+            const { data: tickets, setData: setTickets } = useFetchMock(MockService.getTickets);
+            const location = useLocation();
+            const [activeId, setActiveId] = useState(null);
+            const [input, setInput] = useState('');
+            const [showSummary, setShowSummary] = useState(false);
+            const [summaryLoading, setSummaryLoading] = useState(false);
+            const [summaryText, setSummaryText] = useState('');
+            const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
+            const messagesEndRef = useRef(null);
+            useEffect(() => { if (tickets && location.state?.client) { const existing = tickets.find(t => t.clientId === location.state.client.id); if (existing) setActiveId(existing.id); else { const t = { id: Date.now(), clientId: location.state.client.id, status: 'open', priority: 'medium', messages: [{ id: 1, sender: 'system', text: 'Chat iniciado.' }] }; setTickets(p => [t, ...p]); setActiveId(t.id); } } else if (tickets && tickets.length && !activeId) setActiveId(tickets[0].id); }, [tickets, location.state]);
+            const activeTicket = tickets?.find(t => t.id === activeId);
+            useEffect(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [activeTicket]);
+
+            const handleGenerateSummary = async () => { if (!activeTicket) return; setSummaryLoading(true); setShowSummary(true); const data = await MockService.getChatSummary(activeTicket.clientId); setSummaryText(data.summary); setSummaryLoading(false); };
+            const handleSchedule = (e) => { e.preventDefault(); const fd = new FormData(e.target); MockService.addEvent({ title: fd.get('title'), date: fd.get('date'), time: fd.get('time'), clientId: activeTicket.clientId }).then(() => { setIsAgendaModalOpen(false); alert('Agendado!'); }); };
+
+            if (!tickets) return <div>Carregando...</div>;
+            return (
+                <div className="flex h-[calc(100vh-8rem)] bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 overflow-hidden fade-in">
+                    <div className="w-1/3 border-r border-slate-200 dark:border-slate-700 overflow-y-auto">{tickets.map(t => (<div key={t.id} onClick={() => { setActiveId(t.id); setShowSummary(false); }} className={`p-4 border-b cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 ${activeId === t.id ? 'bg-blue-50 dark:bg-slate-700' : ''}`}><div className="font-bold dark:text-white">Cliente #{t.clientId}</div><div className="text-sm text-slate-500 truncate">{t.messages[t.messages.length - 1].text}</div></div>))}</div>
+                    <div className="flex-1 flex flex-col">{activeTicket ? <>
+                        <div className="p-4 border-b dark:border-slate-700 dark:text-white font-bold bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+                            <span>Chat Cliente #{activeTicket.clientId}</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setIsAgendaModalOpen(true)} className="p-1 text-slate-500 hover:text-blue-500" title="Agendar"><Icons.Calendar className="w-5 h-5" /></button>
+                                <button onClick={handleGenerateSummary} className="p-1 text-slate-500 hover:text-purple-500" title="Resumo IA"><Icons.Sparkles className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+                        {showSummary && (<div className="bg-purple-50 dark:bg-purple-900/30 p-4 border-b border-purple-100 dark:border-purple-800"><div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-300 font-semibold text-sm"><Icons.Sparkles className="w-4 h-4" /> Resumo do Atendimento (IA)</div>{summaryLoading ? <div className="text-sm text-slate-500 animate-pulse">Gerando...</div> : <p className="text-sm text-slate-700 dark:text-slate-300">{summaryText}</p>}</div>)}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100 dark:bg-slate-900/50">{activeTicket.messages.map(m => (<div key={m.id} className={`flex ${m.sender === 'agent' ? 'justify-end' : m.sender === 'system' ? 'justify-center' : 'justify-start'}`}><div className={`p-3 rounded-lg max-w-[75%] ${m.sender === 'agent' ? 'bg-primary-600 text-white' : m.sender === 'system' ? 'bg-slate-200 text-slate-600 text-xs' : 'bg-white dark:bg-slate-700 dark:text-white'}`}>{m.text}</div></div>))}<div ref={messagesEndRef}></div></div><div className="p-4 bg-white dark:bg-slate-800 flex gap-2 border-t dark:border-slate-700 items-center"><button className="text-slate-400 hover:text-primary-600 p-2" title="Anexar arquivo"><Icons.Paperclip className="w-5 h-5" /></button><button className="text-slate-400 hover:text-primary-600 p-2" title="Gravar áudio"><Icons.Microphone className="w-5 h-5" /></button><input value={input} onChange={e => setInput(e.target.value)} className="flex-1 border p-2 rounded dark:bg-slate-700 dark:text-white" placeholder="Digite..." /><button className="bg-primary-600 text-white p-2 rounded"><Icons.PaperAirplane className="w-5 h-5" /></button></div>
+                        <Modal open={isAgendaModalOpen} onClose={() => setIsAgendaModalOpen(false)} title="Agendar"><form onSubmit={handleSchedule} className="space-y-4"><div><label className="block text-sm mb-1 dark:text-white">Assunto</label><input required name="title" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm mb-1 dark:text-white">Data</label><input required type="date" name="date" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div><div><label className="block text-sm mb-1 dark:text-white">Hora</label><input required type="time" name="time" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div></div><div className="flex justify-end"><button className="bg-primary-600 text-white px-4 py-2 rounded">Confirmar</button></div></form></Modal>
+                    </> : <div className="p-10 text-center">Selecione</div>}</div>
+                </div>
+            );
+        };
+
+        const Campaigns = () => {
+            const { data: campaigns, setData: setCampaigns } = useFetchMock(MockService.getCampaigns);
+            const [tab, setTab] = useState('one-shot');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+
+            // Mock Data for Automations and Audiences (Local state since MockService doesn't strictly have them in this simplified version, but we can simulate)
+            const [automations, setAutomations] = useState([
+                { id: 1, name: 'Boas vindas Lead', trigger: 'lead_created', action: 'send_whatsapp', status: 'active' }
+            ]);
+            const [audiences, setAudiences] = useState([
+                { id: 1, name: 'Clientes VIP', count: 154, filters: 'tag:vip' }
+            ]);
+
+            if (!campaigns) return <div>Carregando...</div>;
+
+            const handleCreateRange = (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                if (tab === 'one-shot') {
+                    setCampaigns(p => [{ id: Date.now(), name: fd.get('name'), status: 'scheduled', target: fd.get('target'), sent_at: '-', reach: '-' }, ...p]);
+                } else if (tab === 'automation') {
+                    setAutomations(p => [{ id: Date.now(), name: fd.get('name'), trigger: fd.get('trigger'), action: 'send_message', status: 'active' }, ...p]);
+                } else {
+                    setAudiences(p => [{ id: Date.now(), name: fd.get('name'), count: 0, filters: fd.get('filters') }, ...p]);
+                }
+                setIsModalOpen(false);
+            };
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="flex gap-4 border-b dark:border-slate-700">
+                        {[{ id: 'one-shot', l: 'Campanhas Pontuais' }, { id: 'automation', l: 'Automação' }, { id: 'audiences', l: 'Públicos' }].map(t => (
+                            <button key={t.id} onClick={() => setTab(t.id)} className={`px-4 py-2 border-b-2 transition-colors ${tab === t.id ? 'border-primary-600 text-primary-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                                {t.l}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex justify-end">
+                        <button onClick={() => setIsModalOpen(true)} className="bg-primary-600 text-white px-4 py-2 rounded flex items-center gap-2">
+                            <Icons.Plus className="w-5 h-5" />
+                            {tab === 'one-shot' ? 'Nova Campanha' : tab === 'automation' ? 'Nova Automação' : 'Novo Público'}
+                        </button>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
+                        {tab === 'one-shot' && (
+                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Nome</th><th className="px-6 py-3 text-left">Status</th><th className="px-6 py-3 text-left">Público</th><th className="px-6 py-3 text-left">Alcance</th></tr></thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{campaigns.map(c => (
+                                    <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                                        <td className="px-6 py-4 dark:text-white font-medium">{c.name}</td>
+                                        <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs uppercase ${c.status === 'sent' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{c.status}</span></td>
+                                        <td className="px-6 py-4 dark:text-slate-300">{c.target}</td>
+                                        <td className="px-6 py-4 dark:text-slate-300">{c.reach}</td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        )}
+                        {tab === 'automation' && (
+                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Nome</th><th className="px-6 py-3 text-left">Gatilho</th><th className="px-6 py-3 text-left">Status</th></tr></thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{automations.map(a => (
+                                    <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                                        <td className="px-6 py-4 dark:text-white font-medium">{a.name}</td>
+                                        <td className="px-6 py-4 dark:text-slate-300">{a.trigger === 'lead_created' ? 'Novo Lead' : 'Tag Adicionada'}</td>
+                                        <td className="px-6 py-4"><span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs uppercase">{a.status}</span></td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        )}
+                        {tab === 'audiences' && (
+                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Nome</th><th className="px-6 py-3 text-left">Filtros</th><th className="px-6 py-3 text-left">Contagem</th></tr></thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{audiences.map(a => (
+                                    <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                                        <td className="px-6 py-4 dark:text-white font-medium">{a.name}</td>
+                                        <td className="px-6 py-4 dark:text-slate-300 font-mono text-xs">{a.filters}</td>
+                                        <td className="px-6 py-4 dark:text-slate-300">{a.count}</td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title={tab === 'one-shot' ? 'Nova Campanha' : tab === 'automation' ? 'Nova Automação' : 'Novo Público'}>
+                        <form onSubmit={handleCreateRange} className="space-y-4">
+                            <input required name="name" placeholder="Nome" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                            {tab === 'one-shot' && (
+                                <>
+                                    <input name="target" placeholder="Público Alvo (ex: tags:vip)" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                                    <textarea placeholder="Mensagem do disparo..." className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" rows="3"></textarea>
+                                </>
+                            )}
+                            {tab === 'automation' && (
+                                <>
+                                    <select name="trigger" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white">
+                                        <option value="lead_created">Quando Lead for Criado</option>
+                                        <option value="tag_added">Quando Tag for Adicionada</option>
+                                    </select>
+                                    <textarea placeholder="Mensagem automática..." className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" rows="3"></textarea>
+                                </>
+                            )}
+                            {tab === 'audiences' && (
+                                <input name="filters" placeholder="Filtros (ex: status:active)" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                            )}
+                            <div className="flex justify-end"><button className="bg-primary-600 text-white px-4 py-2 rounded">Salvar</button></div>
+                        </form>
+                    </Modal>
+                </div>
+            );
+        };
+        const Reports = () => {
+            const { data: kpis } = useFetchMock(MockService.getKPIs);
+            const { data: charts } = useFetchMock(MockService.getChartData);
+            if (!kpis || !charts) return <div>Carregando...</div>;
+            const mainKpis = [{ l: 'Faturamento', v: 'R$ ' + kpis.totalRevenue, c: 'text-green-600', i: <Icons.CurrencyDollar className="w-6 h-6" /> }, { l: 'Taxa Conv.', v: kpis.conversionRate + '%', c: 'text-blue-600', i: <Icons.ChartBar className="w-6 h-6" /> }];
+            const opKpis = [{ l: 'Atendimentos', v: kpis.startedChats }, { l: 'Postergados', v: kpis.postponedEvents }, { l: 'Novos Clientes', v: kpis.newClientsToday }, { l: 'Orç via IA', v: kpis.aiQuotesGenerated }, { l: 'Mensagens', v: kpis.operatorMessages }, { l: 'T.M.A', v: kpis.avgHandlingTime }];
+            return (
+                <div className="space-y-6 fade-in">
+                    <h2 className="text-xl font-bold dark:text-white">Relatórios</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{mainKpis.map((m, i) => (<div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border border-slate-100 dark:border-slate-700 flex items-center justify-between"><div><p className="text-sm text-slate-500">{m.l}</p><p className={`text-2xl font-bold ${m.c}`}>{m.v}</p></div><div className="p-3 bg-slate-100 rounded-full">{m.i}</div></div>))}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">{opKpis.map((m, i) => (<div key={i} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow text-center border-t-4 border-primary-500"><p className="text-xs text-slate-500 uppercase font-semibold">{m.l}</p><p className="text-xl font-bold dark:text-white mt-2">{m.v}</p></div>))}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow"><h3 className="mb-4 font-semibold dark:text-white">Produtividade Operador</h3><div className="h-64"><ChartComponent type="bar" data={charts.operatorPerformance} /></div></div>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow"><h3 className="mb-4 font-semibold dark:text-white">Origem Leads</h3><div className="h-64"><ChartComponent type="doughnut" data={charts.leads} /></div></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Settings = () => {
+            const [config, setConfig] = useState({ systemPrompt: 'Você é um assistente útil.', temperature: 0.7, erpUrl: '', erpToken: '' });
+            useEffect(() => { const s = localStorage.getItem('ai_config'); if (s) setConfig(JSON.parse(s)); }, []);
+            const handleSave = (e) => { e.preventDefault(); localStorage.setItem('ai_config', JSON.stringify(config)); alert('Configurações salvas!'); };
+            return (
+                <div className="max-w-2xl bg-white dark:bg-slate-800 rounded shadow p-6 fade-in">
+                    <h2 className="text-xl font-bold dark:text-white mb-6">Configurações do Agente IA</h2>
+                    <form onSubmit={handleSave} className="space-y-6">
+                        <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">System Prompt</label><textarea rows="4" value={config.systemPrompt} onChange={e => setConfig({ ...config, systemPrompt: e.target.value })} className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div>
+                        <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Temperatura (Criatividade)</label><input type="range" min="0" max="1" step="0.1" value={config.temperature} onChange={e => setConfig({ ...config, temperature: parseFloat(e.target.value) })} className="w-full" /><div className="text-right text-sm text-slate-500">{config.temperature}</div></div>
+                        <div className="pt-4 border-t dark:border-slate-700"><h3 className="text-lg font-bold dark:text-white mb-4">Integração ERP</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-sm dark:text-slate-300">API URL</label><input value={config.erpUrl} onChange={e => setConfig({ ...config, erpUrl: e.target.value })} className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div>
+                                <div><label className="block text-sm dark:text-slate-300">Token</label><input type="password" value={config.erpToken} onChange={e => setConfig({ ...config, erpToken: e.target.value })} className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" /></div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end"><button className="bg-primary-600 text-white px-6 py-2 rounded hover:bg-primary-700">Salvar Alterações</button></div>
+                    </form>
+                </div>
+            );
+        };
+
+        const Users = () => {
+            const { data: users, setData: setUsers } = useFetchMock(MockService.getUsers);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [editingUser, setEditingUser] = useState(null);
+
+            if (!users) return <div>Carregando...</div>;
+
+            const handleSaveUser = (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const userData = {
+                    name: fd.get('name'),
+                    email: fd.get('email'),
+                    role: fd.get('role'),
+                    password: fd.get('password'), // In a real app, never store plain text
+                    avatar: `https://ui-avatars.com/api/?name=${fd.get('name')}`
+                };
+
+                if (editingUser) {
+                    const updatedUsers = users.map(u => u.id === editingUser.id ? { ...u, ...userData, id: u.id } : u);
+                    setUsers(updatedUsers);
+                    MockService.saveUsers(updatedUsers);
+                } else {
+                    const newUser = { id: Date.now(), ...userData };
+                    const newUsers = [...users, newUser];
+                    setUsers(newUsers);
+                    MockService.saveUsers(newUsers);
+                }
+                setIsModalOpen(false);
+                setEditingUser(null);
+            };
+
+            const handleDelete = (id) => { if (confirm('Remover usuário?')) { const n = users.filter(u => u.id !== id); setUsers(n); MockService.saveUsers(n); } };
+
+            const openEdit = (user) => {
+                setEditingUser(user);
+                setIsModalOpen(true);
+            };
+
+            const openNew = () => {
+                setEditingUser(null);
+                setIsModalOpen(true);
+            };
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold dark:text-white">Gestão de Usuários</h2><button onClick={openNew} className="bg-primary-600 text-white px-4 py-2 rounded flex items-center gap-2"><Icons.Plus className="w-5 h-5" /> Adicionar Usuário</button></div>
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700"><thead className="bg-slate-50 dark:bg-slate-900 text-slate-500"><tr><th className="px-6 py-3 text-left">Usuário</th><th className="px-6 py-3 text-left">Função</th><th className="px-6 py-3 text-left">Ações</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{users.map(u => (<tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700"><td className="px-6 py-4 flex items-center gap-3"><img src={u.avatar} className="w-8 h-8 rounded-full" /><div className="dark:text-white font-medium">{u.name}<div className="text-xs text-slate-500 font-normal">{u.email}</div></div></td><td className="px-6 py-4"><span className="px-2 py-1 bg-slate-100 dark:bg-slate-600 rounded text-xs uppercase">{u.role}</span></td><td className="px-6 py-4 flex gap-2"><button onClick={() => openEdit(u)} className="text-blue-500 hover:text-blue-700"><Icons.Cog className="w-5 h-5" /></button><button onClick={() => handleDelete(u.id)} className="text-red-500 hover:text-red-700"><Icons.Trash className="w-5 h-5" /></button></td></tr>))}</tbody></table>
+                    </div>
+                    <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? "Editar Usuário" : "Novo Usuário"}>
+                        <form onSubmit={handleSaveUser} className="space-y-4">
+                            <input required name="name" defaultValue={editingUser?.name} placeholder="Nome Completo" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                            <input required type="email" name="email" defaultValue={editingUser?.email} placeholder="Email" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                            <input type="password" name="password" defaultValue={editingUser?.password} placeholder="Senha" className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white" />
+                            <select name="role" defaultValue={editingUser?.role || 'operator'} className="w-full border rounded p-2 dark:bg-slate-700 dark:text-white"><option value="operator">Operador</option><option value="admin">Admin</option></select>
+                            <div className="flex justify-end"><button className="bg-primary-600 text-white px-4 py-2 rounded">Salvar</button></div>
+                        </form>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const App = () => {
+            useEffect(() => { const s = document.getElementById('loading-screen'); if (s) s.style.display = 'none'; }, []);
+            return (
+                <HashRouter>
+                    <AuthProvider><ThemeProvider>
+                        <Routes>
+                            <Route path="/login" element={<Login />} />
+                            <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
+                                <Route index element={<Dashboard />} />
+                                <Route path="agenda" element={<Agenda />} />
+                                <Route path="clients" element={<Clients />} />
+                                <Route path="leads" element={<Leads />} />
+                                <Route path="service" element={<Service />} />
+                                <Route path="campaigns" element={<Campaigns />} />
+                                <Route path="reports" element={<Reports />} />
+                                <Route path="settings" element={<Settings />} />
+                                <Route path="users" element={<Users />} />
+                            </Route>
+                        </Routes>
+                    </ThemeProvider></AuthProvider>
+                </HashRouter>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+
+</html>
