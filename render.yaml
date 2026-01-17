@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: https://pharmadesk-o72z.onrender.com
+        value: "*"
       - key: JWT_SECRET
         sync: false
       - key: JWT_EXPIRATION
