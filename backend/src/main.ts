@@ -8,7 +8,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: '*',
-    credentials: true,
+    credentials: false,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
