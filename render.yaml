@@ -42,8 +42,9 @@ services:
       - key: MONGO_URI
         sync: false
 
-  - type: static
+  - type: web
     name: pharmadesk-frontend
+    env: static
     plan: free
     rootDir: .
     buildCommand: npm install && npm run build
