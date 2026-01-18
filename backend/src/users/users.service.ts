@@ -100,17 +100,34 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { email },
-      select: [
-        'id',
-        'email',
-        'password',
-        'role',
-        'name',
-        'isActive',
-        'companyId',
-        'companyName',
-      ],
+      select: ['id', 'email', 'password', 'role', 'name', 'companyId'], // Explicitly select password
     });
+  }
+
+  async createInitialAdmin(): Promise<User> {
+    const adminEmail = 'admin@pharmadesk.com';
+    const existingAdmin = await this.usersRepository.findOne({
+      where: { email: adminEmail },
+    });
+
+    if (existingAdmin) {
+      return existingAdmin;
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash('admin123', salt);
+
+    const user = this.usersRepository.create({
+      name: 'Super Admin',
+      email: adminEmail,
+      password: hashedPassword,
+      role: UserRole.SUPERADMIN,
+      companyId: 'pharmadesk',
+      companyName: 'PharmaDesk',
+      isActive: true,
+    });
+
+    return this.usersRepository.save(user);
   }
 
   async update(
