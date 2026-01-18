@@ -16,7 +16,7 @@ services:
       - key: CORS_ORIGIN
         value: "https://pharmadesk-frontend-417d.onrender.com"
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: JWT_EXPIRATION
         value: "86400"
       - key: POSTGRES_HOST

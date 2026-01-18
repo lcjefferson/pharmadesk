@@ -17,8 +17,12 @@ import { LocalStrategy } from './local.strategy';
       useFactory: (configService: ConfigService): JwtModuleOptions => {
         const expiresIn =
           configService.get<number>('JWT_EXPIRATION') ?? 60 * 60 * 24;
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          console.warn('JWT_SECRET not found, using fallback secret (NOT SAFE FOR PRODUCTION)');
+        }
         return {
-          secret: configService.get<string>('JWT_SECRET'),
+          secret: secret || 'fallback_secret_do_not_use_in_production',
           signOptions: { expiresIn },
         };
       },
