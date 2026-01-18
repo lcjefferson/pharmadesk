@@ -7,7 +7,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: true, // Reflects the request origin
+    origin: [
+      'https://pharmadesk-frontend-417d.onrender.com',
+      'http://localhost:5173',
+      'http://localhost:4173',
+      'http://localhost:3000',
+    ],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
