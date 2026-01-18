@@ -7,18 +7,24 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: '*',
-    credentials: false,
+    origin: true, // Reflects the request origin
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-      crossOriginResourcePolicy: false,
-    }),
-  );
+  // app.use(
+  //   helmet({
+  //     contentSecurityPolicy: false,
+  //     crossOriginResourcePolicy: false,
+  //   }),
+  // );
+
+  app.use((req: any, res: any, next: any) => {
+    console.log(`Request: ${req.method} ${req.originalUrl}`);
+    console.log('Headers:', req.headers);
+    next();
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
