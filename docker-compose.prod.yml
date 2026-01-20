@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pharmadesk
+      POSTGRES_PASSWORD: pharmadesk
+      POSTGRES_DB: pharmadesk
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: pharmadesk
+      POSTGRES_PASSWORD: pharmadesk
+      POSTGRES_DB: pharmadesk
+      JWT_SECRET: change-me
+      JWT_EXPIRATION: 86400
+      CORS_ORIGINS: http://72.60.154.65
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - appnet
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    networks:
+      - appnet
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  appnet:
+

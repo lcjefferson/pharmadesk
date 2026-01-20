@@ -6,24 +6,28 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const corsOrigins: (string | RegExp)[] =
+    process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+      : [
+          'https://pharmadesk-frontend-417d.onrender.com',
+          'http://localhost:5173',
+          'http://localhost:4173',
+          'http://localhost:3000',
+        ];
   app.enableCors({
-    origin: [
-      'https://pharmadesk-frontend-417d.onrender.com',
-      'http://localhost:5173',
-      'http://localhost:4173',
-      'http://localhost:3000',
-    ],
+    origin: corsOrigins,
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
-  // app.use(
-  //   helmet({
-  //     contentSecurityPolicy: false,
-  //     crossOriginResourcePolicy: false,
-  //   }),
-  // );
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: false,
+    }),
+  );
 
   app.use((req: any, res: any, next: any) => {
     console.log(`Request: ${req.method} ${req.originalUrl}`);
